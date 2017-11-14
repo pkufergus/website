@@ -1,0 +1,100 @@
+#charset utf-8;
+
+    access_log  /var/log/nginx/logs/zabbix.access.log  main;
+    add_header Access-Control-Allow-Origin  *;
+    add_header X-HIT    $hostname;
+
+    ssi off;
+    ssi_types *;
+
+#limit_req zone=lreq burst=3000;
+location =/v1/ping {
+	access_log off;
+	rewrite /v1/(.*)   /$1 break;
+        proxy_redirect     off;
+        proxy_set_header   Host             $host;
+        proxy_set_header   X-Real-IP        $remote_addr;
+        proxy_set_header   X-Forwarded-For  $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Original-URI   $request_uri;
+
+        proxy_connect_timeout      120;
+        proxy_send_timeout         120;
+        proxy_read_timeout         120;
+        client_max_body_size 2048M;
+
+        proxy_pass http://127.0.0.1:8080;
+}
+
+    location / {
+        index  index.html index.htm;
+        root /opt/app/zabbix/html/;
+		try_files $uri $uri/ /index.php?$args;
+		#limit_req zone=allips burst=10 nodelay;
+        #if ($request_filename ~ "\.(js|htc|ico|gif|jpg|png|css|ejs|html|htm|shtml)$") {
+        #    access_log off;
+        #    #expires 7d;
+        #}
+
+        #try_files $uri @lua_router;
+	#header_filter_by_lua    '
+        #    if ngx.var.arg_C ~= nil and ngx.var.arg_C ~= "" then
+        #        local promo_code = ngx.var.arg_C
+        #        ngx.header["Set-Cookie"] = {"promo_code="..promo_code.."; path=/", "setfrom=hitua; path=/"}
+        #    end
+        #';
+    }
+
+    location ~* ^/(js|css|resource)/ {
+        root /opt/app/zabbix/html/;
+        expires -1;
+    }
+
+    location ~ \.xml$ {
+        root /opt/app/zabbix/html/;
+        expires 7d;
+        index crossdomain.xml;
+    }
+
+	location ~.*\.(jpg|png|jpeg)$ {
+		root /opt/app/zabbix/html/;
+		expires 7d;
+	} 
+
+    #location @lua_router {
+    #    content_by_lua_file "/opt/www/php/server_config/router.lua";
+    #}
+
+	error_page  404              /404.html;
+    location = /404.html {
+        root   html;
+		#rewrite ^(.*)$  http://www.e-traveltochina.com/ permanent;
+    }
+    error_page   500 502 503 504  /50x.html;
+    location = /50x.html {
+        root   html;
+    }
+
+
+# pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+#
+    location ~ \.php$ {
+	root /opt/app/zabbix/html/;
+	#limit_req zone=allips burst=100 nodelay;
+        #fastcgi_pass   unix:/tmp/php.socket;
+        #fastcgi_index  index.php;
+        #include        fastcgi.conf;
+	#header_filter_by_lua    '
+        #    if ngx.var.arg_C ~= nil and ngx.var.arg_C ~= "" then
+        #        local promo_code = ngx.var.arg_C
+        #        ngx.header["Set-Cookie"] = {"promo_code="..promo_code.."; path=/", "setfrom=hitua; path=/"}
+        #    end
+        #';
+        try_files $uri =404;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        include fastcgi_params;
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME /opt/app/zabbix/html/$fastcgi_script_name;
+        fastcgi_pass   unix:/tmp/php.socket;
+    }
+
